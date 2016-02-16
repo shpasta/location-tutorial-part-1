@@ -40,6 +40,11 @@
         [self.locationManager setAllowsBackgroundLocationUpdates:YES];
     }
     
+    // Display user location only when app has access to user location
+    if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusAuthorizedAlways) {
+        self.mapView.showsUserLocation = YES;
+    }
+
     [self addPins];
 }
 
@@ -112,6 +117,8 @@
 - (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status {
     if (status == kCLAuthorizationStatusNotDetermined) {
         [self.locationManager requestAlwaysAuthorization];
+    } else if (status == kCLAuthorizationStatusAuthorizedAlways) {
+        self.mapView.showsUserLocation = YES;
     }
 }
 
@@ -119,25 +126,33 @@
 
 - (void)addLocation:(nonnull CLLocation *)location {
     
-    // Use very simple way to store some simple data - User Defaults
+    // Use very simple way to store some simple data - saving to file
     // In real app if you want to save miltiple data - use databases.
-    // UserDefault stores data like plist types, so convert location into
+    // We can't save location objects in file, so convert location into
     // dictionaries and save it
-    NSMutableArray *locations = [[[NSUserDefaults standardUserDefaults] objectForKey:@"locations"] mutableCopy];
-    if (locations == nil)
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                         NSUserDomainMask, YES);
+    NSString *filePath = [paths.firstObject stringByAppendingPathComponent:@"locations"];
+    NSMutableArray *locations = [[NSArray arrayWithContentsOfFile:filePath] mutableCopy];
+    if (!locations)
         locations = [NSMutableArray new];
-    NSNumber *lat = [NSNumber numberWithDouble:location.coordinate.latitude];
-    NSNumber *lon = [NSNumber numberWithDouble:location.coordinate.longitude];
-    NSDictionary *locationDictionary = @{@"latitude":lat, @"longitude":lon};
+    NSNumber *latitude = [NSNumber numberWithDouble:location.coordinate.latitude];
+    NSNumber *longitude = [NSNumber numberWithDouble:location.coordinate.longitude];
+    NSDictionary *locationDictionary = @{@"latitude":latitude, @"longitude":longitude};
     [locations addObject:locationDictionary];
-    [[NSUserDefaults standardUserDefaults] setObject:locations forKey:@"locations"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [locations writeToFile:filePath atomically:YES];
 }
 
 - (NSArray <CLLocation *> *)locations {
-    NSArray *locationDictionary = [[NSUserDefaults standardUserDefaults] objectForKey:@"locations"];
+    // Get path to documents directory
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                         NSUserDomainMask, YES);
+    NSString *filePath = [paths.firstObject stringByAppendingPathComponent:@"locations"];
+    NSArray *array = [NSArray arrayWithContentsOfFile:filePath];
+    
+    // Convert location dictionaries to CLLocation objects and return the array
     NSMutableArray <CLLocation *> *locations = [NSMutableArray new];
-    for (NSDictionary *dict in locationDictionary) {
+    for (NSDictionary *dict in array) {
         NSNumber *latitudeNumber = dict[@"latitude"];
         NSNumber *longitudeNumber = dict[@"longitude"];
         CLLocationDegrees latitude = latitudeNumber.doubleValue;
